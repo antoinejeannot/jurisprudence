@@ -1,9 +1,12 @@
 [project]
 name = "jurisprudence"
 version = "0.1.0"
-description = "Fetches French jurisprudences & upload them to HF"
+description = "Retrieves French jurisprudences"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    "Antoine Jeannot <antoine.jeannot1002@gmail.com>"
+]
 dependencies = [
     "click>=8.1.7",
     "httpx>=0.27.2",
