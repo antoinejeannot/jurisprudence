@@ -59,12 +59,15 @@ def export_batch(items: list[dict[str, Any]], path: Path) -> None:
     Export a batch of items to a file in JSON Lines format.
 
     Args:
-        items (list[dict[str, Any]]): list of dictionaries to be exported.
-        path (Path): File path where the items will be exported.
+        items: List of dictionaries to be exported.
+        path: File path where the items will be exported.
+    Raises:
+        AssertionError: If writing to the file fails.
+
     """
     with open(path, "w") as f:
         for item in items:
-            _ = f.write(json.dumps(item, sort_keys=True, indent=None) + "\n")
+            assert f.write(json.dumps(item, sort_keys=True, indent=None) + "\n")
 
 
 def split_date_range(
@@ -76,12 +79,12 @@ def split_date_range(
     Split a date range into smaller intervals.
 
     Args:
-        start_date (datetime.datetime): The start datetime of the range.
-        end_date (datetime.datetime): The end datetime of the range.
-        interval (datetime.timedelta): The size of each interval.
+        start_date: The start datetime of the range.
+        end_date: The end datetime of the range.
+        interval: The size of each interval.
 
     Yields:
-        tuple[str, str]: A tuple containing the start and end dates of each interval as strings.
+        A tuple containing the start and end dates of each interval.
     """
     while start_date < end_date:
         current_end = min(start_date + interval - datetime.timedelta(days=1), end_date)
@@ -90,6 +93,12 @@ def split_date_range(
 
 
 def _log_retry(retry_state):
+    """
+    Log retry attempts for debugging purposes.
+
+    Args:
+        retry_state: The current state of the retry mechanism.
+    """
     exception = retry_state.outcome.exception()
     attempt = retry_state.attempt_number
     console.log(f"[bold red]Attempt {attempt} failed. Retrying...[/bold red]")
@@ -109,11 +118,13 @@ def fetch_batch(**params: Unpack[Query]) -> ResponseDict:
     Fetch a batch of data from the API with retry logic.
 
     Args:
-        url (str): The API endpoint URL.
         **params: Additional parameters to be passed to the API.
 
     Returns:
-        ResponseDict: The API response containing the batch data.
+        The API response containing the batch data.
+
+    Raises:
+        httpx.HTTPError: If the API request fails after all retry attempts.
     """
     return (
         httpx.get(
@@ -134,10 +145,12 @@ def bump_last_export_date(end_date: datetime.datetime) -> None:
     Update the last export date in the .env file.
 
     Args:
-        end_date (datetime.date): The new last export date to be written.
+        end_date: The new last export date to be written.
+    Raises:
+        AssertionError: If writing to the file fails.
     """
     init_file = Path(__file__).resolve().parent / ".env"
-    line_to_write = f'export JURISPRUDENCE_LAST_EXPORT_DATETIME="{end_date.strftime("%Y-%m-%d %H:%M:%S")}"'
+    line_to_write = f'export JURISPRUDENCE_LAST_EXPORT_DATETIME="{end_date.strftime("%Y-%m-%d %H:%M:%S")}"\n'
     assert init_file.write_text(line_to_write)
 
 
@@ -155,17 +168,17 @@ def process_date_range(
     if the total number of results reaches the maximum batch size.
 
     Args:
-        jurisdiction (Jurisdiction): The jurisdiction to fetch data for.
-        start (str): The start date of the range in 'YYYY-MM-DD' format.
-        end (str): The end date of the range in 'YYYY-MM-DD' format.
-        batch_size (int): The number of items to fetch per batch.
+        jurisdiction: The jurisdiction to fetch data for.
+        start: The start date of the range.
+        end: The end date of the range.
+        batch_size: The number of items to fetch per batch.
+        sleep: The number of seconds to wait between API requests.
 
     Returns:
-        list[dict[str, Any]]: A list of all fetched items within the date range.
+        A list of all fetched items within the date range.
 
     Raises:
         ValueError: If the total number of items doesn't match the sum of batch sizes.
-        Exception: If batch processing fails after all retry attempts.
     """
     current_batch: list[dict[str, Any]] = []
     batch: int = 0
@@ -279,22 +292,25 @@ def main(
     from JUDILIBRE and the PISTE API.
 
     Args:
-        output_path (Path): The directory where exported data will be saved.
-        start_date (datetime.datetime): The start date for data retrieval.
-        end_date (datetime.datetime): The end date for data retrieval (excluded).
-        weeks_interval (int): The number of weeks to use as an interval for pagination.
-        batch_size (int): The number of items to fetch per batch
-        jurisdictions (list[str]): list of jurisdictions to export data for.
-        sleep (int): sleeping time between two consecutive batch API requests.
+        output_path: The directory where exported data will be saved.
+        start_date: The start date for data retrieval.
+        end_date: The end date for data retrieval (excluded).
+        weeks_interval: The number of weeks to use as an interval for pagination.
+        batch_size: The number of items to fetch per batch.
+        jurisdictions: List of jurisdictions to export data for.
+        sleep: Sleeping time between two consecutive batch API requests.
+
+    Raises:
+        AssertionError: If input parameters are invalid or required environment variables are missing.
     """
     start_date = start_date.replace(tzinfo=datetime.timezone.utc)
     end_date = end_date.replace(tzinfo=datetime.timezone.utc)
-    assert start_date < end_date, "Start date must be stricly lower than end date"
-    assert weeks_interval > 0, "Weeks interval cannot be less or equal to 0"
+    assert start_date < end_date, "Start date must be strictly lower than end date"
+    assert weeks_interval > 0, "Weeks interval cannot be less than or equal to 0"
     assert (
         "JUDILIBRE_API_URL" in os.environ
     ), "JUDILIBRE_API_URL must be set, e.g.: https://api.piste.gouv.fr"
-    assert batch_size <= 1000, "Batch size must be lower than 1000"
+    assert batch_size <= 1000, "Batch size must be lower than or equal to 1000"
     assert (
         sleep >= 0
     ), f"You cannot sleep for {sleep} seconds, time travel to the past is not yet supported."
