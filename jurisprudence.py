@@ -114,8 +114,8 @@ def _log_retry(retry_state):
 
 @retry(
     retry=retry_if_exception_type(httpx.HTTPError),
-    stop=stop_after_attempt(8),
-    wait=wait_exponential(multiplier=1, min=4, max=120),
+    stop=stop_after_attempt(10),
+    wait=wait_exponential(multiplier=1, min=4),
     before_sleep=_log_retry,
 )
 def fetch_batch(**params: Unpack[Query]) -> ResponseDict:
