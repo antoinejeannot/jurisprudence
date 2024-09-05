@@ -2,22 +2,14 @@ import datetime
 import enum
 import json
 import os
+import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict, Unpack
 
 import click
 import httpx
-from rich.console import Console, Group
-from rich.live import Live
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
+from rich.console import Console
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -29,15 +21,37 @@ console = Console()
 
 
 class Jurisdiction(str, enum.Enum):
-    CA = "ca"
-    TJ = "tj"
-    CC = "cc"
+    CA = "CA"
+    TJ = "TJ"
+    CC = "CC"
+
+
+class Query(TypedDict):
+    batch: int
+    type: NotRequired[list[str]]
+    theme: NotRequired[list[str]]
+    chamber: NotRequired[list[str]]
+    formation: NotRequired[list[str]]
+    jurisdiction: NotRequired[list[str]]
+    location: NotRequired[list[str]]
+    publication: NotRequired[list[str]]
+    solution: NotRequired[list[str]]
+    date_start: NotRequired[str]
+    date_end: NotRequired[str]
+    abridged: NotRequired[bool]
+    date_type: NotRequired[str]
+    order: NotRequired[str]
+    batch_size: NotRequired[int]
+    resolve_references: NotRequired[bool]
+    withFileOfType: NotRequired[list[str]]
+    particularInterest: NotRequired[bool]
 
 
 class ResponseDict(TypedDict):
+    # incomplete
     total: int
     results: list[dict[str, Any]]
-    next_batch: bool
+    next_batch: str
 
 
 def export_batch(items: list[dict[str, Any]], path: Path) -> None:
@@ -45,69 +59,52 @@ def export_batch(items: list[dict[str, Any]], path: Path) -> None:
     Export a batch of items to a file in JSON Lines format.
 
     Args:
-        items (list[dict[str, Any]]): List of dictionaries to be exported.
+        items (list[dict[str, Any]]): list of dictionaries to be exported.
         path (Path): File path where the items will be exported.
     """
     with open(path, "w") as f:
         for item in items:
-            assert f.write(json.dumps(item, sort_keys=True, indent=None) + "\n")
+            _ = f.write(json.dumps(item, sort_keys=True, indent=None) + "\n")
 
 
 def split_date_range(
-    start_date: datetime.date, end_date: datetime.date, interval: datetime.timedelta
-) -> Generator[tuple[str, str], None, None]:
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    interval: datetime.timedelta,
+) -> Generator[tuple[datetime.datetime, datetime.datetime], None, None]:
     """
     Split a date range into smaller intervals.
 
     Args:
-        start_date (datetime.date): The start date of the range.
-        end_date (datetime.date): The end date of the range.
+        start_date (datetime.datetime): The start datetime of the range.
+        end_date (datetime.datetime): The end datetime of the range.
         interval (datetime.timedelta): The size of each interval.
 
     Yields:
         tuple[str, str]: A tuple containing the start and end dates of each interval as strings.
     """
-    current_start = start_date
-    while current_start < end_date:
-        current_end = min(
-            current_start + interval - datetime.timedelta(days=1), end_date
-        )
-        yield str(current_start), str(current_end)
-        current_start = current_end + datetime.timedelta(days=1)
+    while start_date < end_date:
+        current_end = min(start_date + interval - datetime.timedelta(days=1), end_date)
+        yield start_date, current_end
+        start_date = current_end + datetime.timedelta(days=1)
 
 
-def find_middle_date(start_date: str, end_date: str) -> datetime.datetime:
-    """
-    Find the middle date between two given dates.
-
-    Args:
-        start_date (str): The start date in 'YYYY-MM-DD' format.
-        end_date (str): The end date in 'YYYY-MM-DD' format.
-
-    Returns:
-        datetime.datetime: The middle date between start_date and end_date.
-
-    Raises:
-        AssertionError: If start_date is greater or equal to end_date.
-    """
-    start_date_time = datetime.datetime.strptime(start_date, "%Y-%m-%d")
-    end_date_time = datetime.datetime.strptime(end_date, "%Y-%m-%d")
-    assert start_date < end_date
-    difference = end_date_time - start_date_time
-    midpoint = difference / 2
-    middle_date = start_date_time + midpoint
-    return middle_date
+def _log_retry(retry_state):
+    exception = retry_state.outcome.exception()
+    attempt = retry_state.attempt_number
+    console.log(f"[bold red]Attempt {attempt} failed. Retrying...[/bold red]")
+    if exception:
+        console.log("[bold yellow]Exception details:[/bold yellow]")
+        console.print(type(exception), exception, exception.__traceback__)
 
 
 @retry(
-    retry=retry_if_exception_type(httpx.RequestError),
+    retry=retry_if_exception_type(httpx.HTTPError),
     stop=stop_after_attempt(8),
     wait=wait_exponential(multiplier=1, min=4, max=120),
-    before_sleep=lambda retry_state: console.print(
-        f"Attempt {retry_state.attempt_number} failed. Retrying..."
-    ),
+    before_sleep=_log_retry,
 )
-def fetch_batch(url: str, **params: dict[str, Any]) -> ResponseDict:
+def fetch_batch(**params: Unpack[Query]) -> ResponseDict:
     """
     Fetch a batch of data from the API with retry logic.
 
@@ -117,13 +114,10 @@ def fetch_batch(url: str, **params: dict[str, Any]) -> ResponseDict:
 
     Returns:
         ResponseDict: The API response containing the batch data.
-
-    Raises:
-        httpx.RequestError: If the request fails after all retry attempts.
     """
     return (
         httpx.get(
-            url,
+            f"{os.environ['JUDILIBRE_API_URL']}/cassation/judilibre/v1.0/export",
             params=params,
             headers={
                 "KeyId": os.environ["JUDILIBRE_API_KEY"],
@@ -135,7 +129,7 @@ def fetch_batch(url: str, **params: dict[str, Any]) -> ResponseDict:
     )
 
 
-def bump_last_export_date(end_date: datetime.date) -> None:
+def bump_last_export_date(end_date: datetime.datetime) -> None:
     """
     Update the last export date in the .env file.
 
@@ -143,16 +137,16 @@ def bump_last_export_date(end_date: datetime.date) -> None:
         end_date (datetime.date): The new last export date to be written.
     """
     init_file = Path(__file__).resolve().parent / ".env"
-    line_to_write = f'JURISPRUDENCE_LAST_EXPORT_DATE = "{str(end_date)}"'
+    line_to_write = f'export JURISPRUDENCE_LAST_EXPORT_DATETIME="{end_date.strftime("%Y-%m-%d %H:%M:%S")}"'
     assert init_file.write_text(line_to_write)
 
 
 def process_date_range(
-    url: str,
     jurisdiction: Jurisdiction,
-    start: str,
-    end: str,
+    start: datetime.datetime,
+    end: datetime.datetime,
     batch_size: int,
+    sleep: int,
 ) -> list[dict[str, Any]]:
     """
     Process a date range to fetch and combine batches of data.
@@ -161,7 +155,6 @@ def process_date_range(
     if the total number of results reaches the maximum batch size.
 
     Args:
-        url (str): The API endpoint URL.
         jurisdiction (Jurisdiction): The jurisdiction to fetch data for.
         start (str): The start date of the range in 'YYYY-MM-DD' format.
         end (str): The end date of the range in 'YYYY-MM-DD' format.
@@ -178,20 +171,22 @@ def process_date_range(
     batch: int = 0
     total: int = 0
     while True:
-        try:
-            response: ResponseDict = fetch_batch(
-                url,
-                order="asc",
-                resolve_references="true",
-                batch=str(batch),
-                batch_size=str(batch_size),
-                date_start=start,
-                date_end=end,
-                jurisdiction=jurisdiction,
-            )
-        except Exception as e:
-            print(f"Failed to process batch {batch} after all retries: {e}")
-            raise
+        _start = start.isoformat().replace("+00:00", "Z")
+        _end = end.isoformat().replace("+00:00", "Z")
+        console.log(
+            f"Fetching {jurisdiction}, from {_start} to {_end}, {batch=}, {batch_size=}",
+            end="...",
+        )
+        response: ResponseDict = fetch_batch(
+            order="asc",
+            date_type="creation",
+            resolve_references="true",
+            batch=str(batch),
+            batch_size=str(batch_size),
+            date_start=_start,
+            date_end=_end,
+            jurisdiction=jurisdiction,
+        )
         total: int = response["total"]
         if total == 0:
             break
@@ -199,22 +194,20 @@ def process_date_range(
             # I have experienced data loss
             # when `total` reaches the batch max size == 10_000
             # so let's reduce it by splitting the time range equally
-            pivot = find_middle_date(start, end)
-            left = process_date_range(
-                url, jurisdiction, start, str(pivot.date()), batch_size
-            )
+            pivot = start + (end - start) / 2
+            left = process_date_range(jurisdiction, start, pivot, batch_size, sleep)
             right = process_date_range(
-                url,
-                jurisdiction,
-                str((pivot + datetime.timedelta(days=1)).date()),
-                end,
-                batch_size,
+                jurisdiction, pivot + datetime.timedelta(days=1), end, batch_size, sleep
             )
             return left + right
+        console.log(
+            f".. got {len(response['results'])} {jurisdiction} jurisprudences",
+        )
         current_batch.extend(response["results"])
         batch += 1
         if not response["next_batch"]:
             break
+        time.sleep(sleep)
     if total != len(current_batch):
         raise ValueError(
             f"Total ({total}) != current batch's length ({len(current_batch)})"
@@ -229,26 +222,32 @@ def process_date_range(
 )
 @click.option(
     "--start-date",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    default=str(datetime.date(1800, 1, 1)),
-    help="Start date for data retrieval",
+    type=click.DateTime(),
+    default=os.getenv(
+        "JURISPRUDENCE_LAST_EXPORT_DATETIME", str(datetime.date(1800, 1, 1))
+    ),
+    help="Start date for data retrieval, UTC",
 )
 @click.option(
     "--end-date",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    default=str(datetime.datetime.now().date()),
-    help="End date for data retrieval, excluded",
+    type=click.DateTime(),
+    default=datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    ),
+    help="End date for data, UTC",
 )
 @click.option(
+    "-i",
     "--weeks-interval",
     type=int,
     default=26,
     help="Interval for pagination",
 )
 @click.option(
+    "-b",
     "--batch-size",
     type=int,
-    default=1000,
+    default=100,
     help="Batch size for exports, must be lower or equal than 1000",
 )
 @click.option(
@@ -259,6 +258,13 @@ def process_date_range(
     multiple=True,
     help="Jurisdictions to export, default: all",
 )
+@click.option(
+    "-s",
+    "--sleep",
+    type=int,
+    default=1,
+    help="Sleep time between two consecutive batch API requests",
+)
 def main(
     output_path: Path,
     start_date: datetime.datetime,
@@ -266,6 +272,7 @@ def main(
     weeks_interval: int,
     batch_size: int,
     jurisdictions: list[Jurisdiction | Literal["all"]],
+    sleep: int,
 ) -> None:
     """
     Export jurisprudence data for specified jurisdictions and date ranges
@@ -277,64 +284,39 @@ def main(
         end_date (datetime.datetime): The end date for data retrieval (excluded).
         weeks_interval (int): The number of weeks to use as an interval for pagination.
         batch_size (int): The number of items to fetch per batch
-        jurisdictions (list[str]): List of jurisdictions to export data for.
+        jurisdictions (list[str]): list of jurisdictions to export data for.
+        sleep (int): sleeping time between two consecutive batch API requests.
     """
+    start_date = start_date.replace(tzinfo=datetime.timezone.utc)
+    end_date = end_date.replace(tzinfo=datetime.timezone.utc)
     assert start_date < end_date, "Start date must be stricly lower than end date"
     assert weeks_interval > 0, "Weeks interval cannot be less or equal to 0"
-    url = f"{os.environ['JUDILIBRE_API_URL']}/cassation/judilibre/v1.0/export"
+    assert (
+        "JUDILIBRE_API_URL" in os.environ
+    ), "JUDILIBRE_API_URL must be set, e.g.: https://api.piste.gouv.fr"
+    assert batch_size <= 1000, "Batch size must be lower than 1000"
+    assert (
+        sleep >= 0
+    ), f"You cannot sleep for {sleep} seconds, time travel to the past is not yet supported."
     interval: datetime.timedelta = datetime.timedelta(weeks=weeks_interval)
-
-    def create_progress_bar(jurisdiction: str):
-        return Progress(
-            SpinnerColumn(),
-            TextColumn(f"[bold cyan]Exporting {jurisdiction}", justify="right"),
-            "•",
-            TextColumn("[bold green]{task.fields[date_range]}", justify="right"),
-            "•",
-            BarColumn(bar_width=None),
-            "•",
-            "[progress.percentage]{task.percentage:>3.1f}%",
-            TimeRemainingColumn(),
-            TimeElapsedColumn(),
-            "•",
-            expand=True,
-        )
-
     if "all" in jurisdictions:
         jurisdictions: list[Jurisdiction] = list(Jurisdiction._member_names_)  # type: ignore
 
-    progress_bars = {j: create_progress_bar(j) for j in jurisdictions}
-    group = Group(*progress_bars.values())
-    live = Live(group)
-    with live:
-        tasks = {
-            j: progress_bars[j].add_task(f"Exporting {j}", start=True, date_range="")
-            for j in jurisdictions
-        }
-
-        for jurisdiction in jurisdictions:
-            output_path_jurisdiction = output_path / jurisdiction
-            os.makedirs(output_path_jurisdiction, exist_ok=True)
-            date_ranges = list(
-                split_date_range(start_date.date(), end_date.date(), interval)
+    for jurisdiction in jurisdictions:
+        output_path_jurisdiction = output_path / jurisdiction
+        os.makedirs(output_path_jurisdiction, exist_ok=True)
+        date_ranges = split_date_range(start_date, end_date, interval)
+        for start, end in date_ranges:
+            time_range_batch = process_date_range(
+                jurisdiction, start, end, batch_size, sleep
             )
-            progress_bars[jurisdiction].update(
-                tasks[jurisdiction], total=len(date_ranges)
-            )
-            for start, end in date_ranges:
-                progress_bars[jurisdiction].update(
-                    tasks[jurisdiction], date_range=f"{start} - {end}"
+            if len(time_range_batch) > 0:
+                export_batch(
+                    time_range_batch,
+                    output_path_jurisdiction
+                    / f"{start.isoformat()}-{end.isoformat()}.jsonl",
                 )
-                time_range_batch = process_date_range(
-                    url, jurisdiction, start, end, batch_size
-                )
-                if time_range_batch:
-                    export_batch(
-                        time_range_batch,
-                        output_path_jurisdiction / f"{start}-{end}.jsonl",
-                    )
-                progress_bars[jurisdiction].advance(tasks[jurisdiction])
-        bump_last_export_date(end_date.date())
+        bump_last_export_date(end_date)
 
 
 if __name__ == "__main__":
