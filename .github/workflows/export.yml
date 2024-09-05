@@ -33,6 +33,9 @@ jobs:
     - name: Compress data
       run: make compress
 
+    - name: Release Notes
+      run: make release-note
+
     - name: Upload to Hugging Face
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -40,8 +43,19 @@ jobs:
 
     - name: Commit and push .env file
       run: |
+        cp compressed/README.md RELEASE_NOTE.md
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add .env
+        git add .env RELEASE_NOTE.md
         git commit -m "🤖 Bump ${{ env.VERSION }}" || echo "No changes to commit"
         git push
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.VERSION }}
+        release_name: Release ${{ env.VERSION }}
+        body_path: RELEASE_NOTE.md
+        draft: false
+        prerelease: false

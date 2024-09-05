@@ -232,6 +232,14 @@ def process_date_range(
     return current_batch
 
 
+def _human_readable_size(size, decimal_places=2):
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024.0:
+            break
+        size /= 1024.0
+    return f"{size:.{decimal_places}f} {unit}"
+
+
 @cli.command()
 @click.argument(
     "output_path",
@@ -338,6 +346,95 @@ def export(
                     / f"{start.isoformat()}-{end.isoformat()}.jsonl",
                 )
         bump_last_export_date(end_date)
+
+
+@cli.command()
+@click.argument(
+    "input_path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=".",
+)
+@click.argument(
+    "output_path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=".",
+)
+@click.option(
+    "--version", type=str, default=None, help="Version number for the release"
+)
+def release_note(input_path: Path, output_path: Path, version: str):
+    """
+    Generate a release note based on the exported data.
+
+    Args:
+        input_path: The directory where the exported data is located.
+        output_path: The directory where the release-note will be written.
+        version: The version number for the release. If not provided, uses the current date.
+    """
+    if not version:
+        version = f"v{datetime.datetime.now().strftime('%Y.%m.%d')}"
+
+    release_note = f"# ✨ Release {version} 🏛️\n\n"
+    release_note += "## 📊 Exported Data\n\n"
+
+    # Start the markdown table
+    release_note += (
+        "| Jurisdiction | Size | Jurisprudences | Oldest | Latest | Download |\n"
+    )
+    release_note += (
+        "|--------------|------|----------------|--------|--------|----------|\n"
+    )
+    total_jurisprudences = 0
+    total_size = 0
+
+    download_links = {
+        "CA": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/chambre_d_appel.tar.gz?download=true",
+        "CC": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cours_de_cassation.tar.gz?download=true",
+        "TJ": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true",
+    }
+
+    for jurisdiction in Jurisdiction._member_names_:
+        jurisdiction_path = input_path / jurisdiction
+        if jurisdiction_path.exists():
+            size = sum(
+                f.stat().st_size for f in jurisdiction_path.glob("**/*") if f.is_file()
+            )
+            total_size += size
+            human_readable_size = _human_readable_size(size)
+            jurisdiction_name = {
+                "CA": "Chambre d'Appel",
+                "TJ": "Tribunal Judiciaire",
+                "CC": "Cours de Cassation",
+            }.get(jurisdiction, jurisdiction)
+
+            # Count the number of jurisprudences and find oldest/latest dates
+            jurisprudence_count = 0
+            oldest_date = datetime.datetime.max
+            latest_date = datetime.datetime.min
+
+            for file in jurisdiction_path.glob("**/*.jsonl"):
+                with open(file, "r") as f:
+                    for line in f:
+                        jurisprudence_count += 1
+                        data = json.loads(line)
+                        decision_date = datetime.datetime.strptime(
+                            data["decision_date"], "%Y-%m-%d"
+                        )
+                        oldest_date = min(oldest_date, decision_date)
+                        latest_date = max(latest_date, decision_date)
+
+            total_jurisprudences += jurisprudence_count
+
+            download_link = download_links.get(jurisdiction, "N/A")
+            release_note += f"| {jurisdiction_name} | {human_readable_size} | {jurisprudence_count:,} | {oldest_date.strftime('%Y-%m-%d')} | {latest_date.strftime('%Y-%m-%d')} | [Download]({download_link}) |\n"
+
+    # Add total row (excluding date range and download link for total)
+    release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | - |\n\n"
+    release_note += "\n## 🤗 Hugging Face Dataset\n\n"
+    release_note += "The updated dataset is available at: https://huggingface.co/datasets/ajeannot/jurisprudence\n\n"
+
+    output_path.write_text(release_note)
+    console.print(f"[green]Release note generated at:[/green] {output_path}")
 
 
 if __name__ == "__main__":
