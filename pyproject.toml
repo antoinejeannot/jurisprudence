@@ -13,4 +13,5 @@ dependencies = [
     "huggingface-hub>=0.24.6",
     "rich>=13.8.0",
     "tenacity>=9.0.0",
+    "tiktoken>=0.7.0",
 ]

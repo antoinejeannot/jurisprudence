@@ -9,6 +9,7 @@ from typing import Any, Literal, NotRequired, TypedDict, Unpack
 
 import click
 import httpx
+import tiktoken
 from rich.console import Console
 from tenacity import (
     retry,
@@ -374,21 +375,25 @@ def release_note(input_path: Path, output_path: Path, version: str):
     """
     if not version:
         version = f"v{datetime.datetime.now().strftime('%Y.%m.%d')}"
+    encoding = tiktoken.encoding_for_model("gpt-4")
     release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
     release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
-    release_note += f"Last update date: {version.lstrip("v").replace(".", "-")}\n\n"
+    release_note += "Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:\n\n"
+    release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cours d'Appel, Tribunaux Judiciaires)\n"
+    release_note += "- Process and convert the data into easily accessible formats\n"
+    release_note += (
+        "- Publish & version updated datasets on Hugging Face every 3 days\n\n"
+    )
+    release_note += "This project aims to democratize access to legal information, enabling researchers, legal professionals, and the public to easily access and analyze French court decisions.\n"
+    release_note += "Whether you're conducting legal research, developing AI models, or simply interested in French jurisprudence, this project provides a valuable, open resource for exploring the French legal landscape.\n\n"
     release_note += "## 📊 Exported Data\n\n"
 
     # Start the markdown table
-    release_note += (
-        "| Jurisdiction | Size | Jurisprudences | Oldest | Latest | Download |\n"
-    )
-    release_note += (
-        "|--------------|------|----------------|--------|--------|----------|\n"
-    )
+    release_note += "| Jurisdiction | Size | Jurisprudences | Oldest | Latest | Tokens | Download |\n"
+    release_note += "|--------------|------|----------------|--------|--------|--------|----------|\n"
     total_jurisprudences = 0
     total_size = 0
-
+    total_tokens = 0
     download_links = {
         "CA": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/chambre_d_appel.tar.gz?download=true",
         "CC": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cours_de_cassation.tar.gz?download=true",
@@ -397,51 +402,65 @@ def release_note(input_path: Path, output_path: Path, version: str):
 
     for jurisdiction in Jurisdiction._member_names_:
         jurisdiction_path = input_path / jurisdiction
-        if jurisdiction_path.exists():
-            size = sum(
-                f.stat().st_size for f in jurisdiction_path.glob("**/*") if f.is_file()
-            )
-            total_size += size
-            human_readable_size = _human_readable_size(size)
-            jurisdiction_name = {
-                "CA": "Chambre d'Appel",
-                "TJ": "Tribunal Judiciaire",
-                "CC": "Cours de Cassation",
-            }.get(jurisdiction, jurisdiction)
+        if not jurisdiction_path.exists():
+            continue
+        size = sum(
+            f.stat().st_size for f in jurisdiction_path.glob("**/*") if f.is_file()
+        )
+        total_size += size
+        human_readable_size = _human_readable_size(size)
+        jurisdiction_name = {
+            "CA": "Chambre d'Appel",
+            "TJ": "Tribunal Judiciaire",
+            "CC": "Cours de Cassation",
+        }.get(jurisdiction, jurisdiction)
 
-            # Count the number of jurisprudences and find oldest/latest dates
-            jurisprudence_count = 0
-            oldest_date = None
-            latest_date = None
-            line = None
-            for file in sorted(
-                jurisdiction_path.glob("**/*.jsonl"),
-                key=lambda x: datetime.datetime.strptime(
-                    os.path.basename(x).split("+00:00-")[0], "%Y-%m-%dT%H:%M:%S"
-                ),
-            ):
-                with open(file, "r") as f:
-                    for line in f:
-                        if oldest_date is None:
-                            oldest_date = datetime.datetime.strptime(
-                                json.loads(line)["decision_date"], "%Y-%m-%d"
-                            )
+        # Count the number of jurisprudences and find oldest/latest dates
+        jurisprudence_count = 0
+        oldest_date = datetime.datetime.max
+        latest_date = datetime.datetime.min
+        data = None
+        tokens = 0
+        sorted_paths = sorted(
+            jurisdiction_path.glob("**/*.jsonl"),
+            key=lambda x: datetime.datetime.strptime(
+                os.path.basename(x).split("+00:00-")[0], "%Y-%m-%dT%H:%M:%S"
+            ),
+        )
+        batch: list[str] = []
+        for file in sorted_paths:
+            with open(file, "r") as f:
+                for line in f:
+                    data = json.loads(line)
+                    oldest_date = min(
+                        oldest_date,
+                        datetime.datetime.strptime(data["decision_date"], "%Y-%m-%d"),
+                    )
+                    latest_date = max(
+                        latest_date,
+                        datetime.datetime.strptime(data["decision_date"], "%Y-%m-%d"),
+                    )
+                    if len(batch) < 10000:
+                        batch.append(data["text"])
+                    else:
+                        tokens += sum(map(len, encoding.encode_batch(batch)))
+                        batch.clear()
+                    jurisprudence_count += 1
+        tokens += sum(map(len, encoding.encode_batch(batch)))
+        batch.clear()
+        assert oldest_date
+        assert latest_date
 
-                        jurisprudence_count += 1
-            assert line
-            latest_date = datetime.datetime.strptime(
-                json.loads(line)["decision_date"], "%Y-%m-%d"
-            )
-            assert oldest_date
-            assert latest_date
-
-            total_jurisprudences += jurisprudence_count
-
-            download_link = download_links.get(jurisdiction, "N/A")
-            release_note += f"| {jurisdiction_name} | {human_readable_size} | {jurisprudence_count:,} | {oldest_date.strftime('%Y-%m-%d')} | {latest_date.strftime('%Y-%m-%d')} | [Download]({download_link}) |\n"
-
+        total_jurisprudences += jurisprudence_count
+        total_tokens += tokens
+        download_link = download_links.get(jurisdiction, "N/A")
+        release_note += f"| {jurisdiction_name} | {human_readable_size} | {jurisprudence_count:,} | {oldest_date.strftime('%Y-%m-%d')} | {latest_date.strftime('%Y-%m-%d')} | {tokens:,} +| [Download]({download_link}) |\n"
     # Add total row (excluding date range and download link for total)
-    release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | - |\n\n"
+    release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | **{total_tokens:,} +** | - |\n\n"
+    release_note += (
+        f"<i>Last update date: {version.lstrip("v").replace(".", "-")}</i>\n\n"
+    )
+    release_note += "<i># Tokens are computed GPT-4 using tiktoken </i>\n\n"
     release_note += "\n## 🤗 Hugging Face Dataset\n\n"
     release_note += "The updated dataset is available at: https://huggingface.co/datasets/ajeannot/jurisprudence\n\n"
     release_note += "## 🪪 Citing & Authors\n\n"
