@@ -2,8 +2,8 @@ name: Jurisprudence Export & Upload
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight UTC
-  workflow_dispatch:  # Allow manual triggering
+    - cron: '0 2 */3 * *' # every 3 days at 2 AM UTC
+  workflow_dispatch: # Allow manual triggering
 
 env:
   JUDILIBRE_API_URL: ${{ secrets.JUDILIBRE_API_URL }}
@@ -14,48 +14,48 @@ jobs:
   export-and-upload:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    - name: Install dependencies
-      run: make install
+      - name: Install dependencies
+        run: make install
 
-    - name: Set VERSION
-      run: echo "VERSION=v$(date +'%Y.%m.%d')" >> $GITHUB_ENV
+      - name: Set VERSION
+        run: echo "VERSION=v$(date +'%Y.%m.%d')" >> $GITHUB_ENV
 
-    - name: Export data
-      run: make export
+      - name: Export data
+        run: make export
 
-    - name: Compress data
-      run: make compress
+      - name: Compress data
+        run: make compress
 
-    - name: Release Notes
-      run: make release-note
+      - name: Release Notes
+        run: make release-note
 
-    - name: Upload to Hugging Face
-      env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      run: make upload
+      - name: Upload to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: make upload
 
-    - name: Commit and push .env file
-      run: |
-        cp release_notes/${{env.VERSION}}.md README.md
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add .env README.md release_notes/${{env.VERSION}}.md 
-        git commit -m "🤖 Bump ${{ env.VERSION }}" || echo "No changes to commit"
-        git push
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.VERSION }}
-        release_name: Release ${{ env.VERSION }}
-        body_path: release_notes/${{env.VERSION}}.md
-        draft: false
-        prerelease: false
+      - name: Commit and push .env file
+        run: |
+          cp release_notes/${{env.VERSION}}.md README.md
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .env README.md release_notes/${{env.VERSION}}.md 
+          git commit -m "🤖 Bump ${{ env.VERSION }}" || echo "No changes to commit"
+          git push
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: Release ${{ env.VERSION }}
+          body_path: release_notes/${{env.VERSION}}.md
+          draft: false
+          prerelease: false
