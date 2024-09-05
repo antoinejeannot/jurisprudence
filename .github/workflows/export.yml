@@ -56,6 +56,6 @@ jobs:
       with:
         tag_name: ${{ env.VERSION }}
         release_name: Release ${{ env.VERSION }}
-        body_path: RELEASE_NOTE.md
+        body_path: release_notes/${{env.VERSION}}.md
         draft: false
         prerelease: false
