@@ -376,6 +376,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
         version = f"v{datetime.datetime.now().strftime('%Y.%m.%d')}"
     release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
     release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
+    release_note += f"Last update date: {version.lstrip("v").replace(".", "-")}\n\n"
     release_note += "## 📊 Exported Data\n\n"
 
     # Start the markdown table
@@ -443,7 +444,22 @@ def release_note(input_path: Path, output_path: Path, version: str):
     release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | - |\n\n"
     release_note += "\n## 🤗 Hugging Face Dataset\n\n"
     release_note += "The updated dataset is available at: https://huggingface.co/datasets/ajeannot/jurisprudence\n\n"
-
+    release_note += "## 🪪 Citing & Authors\n\n"
+    release_note += "If you use this code in your research, please use the following BibTeX entry:\n"
+    release_note += "```bibtex\n"
+    release_note += "@misc{antoinejeannot2024,\n"
+    release_note += "author = {Jeannot Antoine and {Cour de Cassation}},\n"
+    release_note += "title = {Jurisprudence},\n"
+    release_note += "year = {2024},\n"
+    release_note += (
+        "howpublished = {\\url{https://github.com/antoinejeannot/jurisprudence}},\n"
+    )
+    release_note += "note = {Data source: API Judilibre, \\url{https://www.data.gouv.fr/en/datasets/api-judilibre/}}\n"
+    release_note += "}\n"
+    release_note += "```\n\n"
+    release_note += "This project relies on the [Judilibre API par la Cour de Cassation](https://www.data.gouv.fr/en/datasets/api-judilibre/), which is made available under the Open License 2.0 (Licence Ouverte 2.0)\n\n"
+    release_note += "It scans the API every 3 days at 2am UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.\n\n"
+    release_note += '<p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/" alt="license ouverte / open license"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50></a></p>\n\n'
     output_path.write_text(release_note)
     console.print(f"[green]Release note generated at:[/green] {output_path}")
 
