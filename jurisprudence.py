@@ -20,6 +20,10 @@ from tenacity import (
 console = Console()
 
 
+@click.group()
+def cli(): ...
+
+
 class Jurisdiction(str, enum.Enum):
     CA = "CA"
     TJ = "TJ"
@@ -150,7 +154,7 @@ def bump_last_export_date(end_date: datetime.datetime) -> None:
         AssertionError: If writing to the file fails.
     """
     init_file = Path(__file__).resolve().parent / ".env"
-    line_to_write = f'export JURISPRUDENCE_LAST_EXPORT_DATETIME="{end_date.strftime("%Y-%m-%d %H:%M:%S")}"\n'
+    line_to_write = f'export JURISPRUDENCE_LAST_EXPORT_DATETIME={end_date.strftime("%Y-%m-%d %H:%M:%S")}\n'
     assert init_file.write_text(line_to_write)
 
 
@@ -228,10 +232,11 @@ def process_date_range(
     return current_batch
 
 
-@click.command()
+@cli.command()
 @click.argument(
     "output_path",
     type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path),
+    default=".",
 )
 @click.option(
     "--start-date",
@@ -278,7 +283,7 @@ def process_date_range(
     default=1,
     help="Sleep time between two consecutive batch API requests",
 )
-def main(
+def export(
     output_path: Path,
     start_date: datetime.datetime,
     end_date: datetime.datetime,
@@ -286,7 +291,7 @@ def main(
     batch_size: int,
     jurisdictions: list[Jurisdiction | Literal["all"]],
     sleep: int,
-) -> None:
+):
     """
     Export jurisprudence data for specified jurisdictions and date ranges
     from JUDILIBRE and the PISTE API.
@@ -336,4 +341,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+    cli()
