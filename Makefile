@@ -10,7 +10,7 @@ VERSION := v$(YEAR).$(MONTH).$(DAY)
 
 export:
 	@mkdir raws
-	@python jurisprudence.py export ./raws --start-date 2024-07-01
+	@python jurisprudence.py export ./raws
 
 install:
 	@pip install -r requirements.txt
