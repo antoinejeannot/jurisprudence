@@ -1,0 +1,47 @@
+name: Jurisprudence Export & Upload
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  JUDILIBRE_API_URL: ${{ secrets.JUDILIBRE_API_URL }}
+  JUDILIBRE_API_KEY: ${{ secrets.JUDILIBRE_API_KEY }}
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+jobs:
+  export-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: make install
+
+    - name: Set VERSION
+      run: echo "VERSION=v$(date +'%Y.%m.%d')" >> $GITHUB_ENV
+
+    - name: Export data
+      run: make export
+
+    - name: Compress data
+      run: make compress
+
+    - name: Upload to Hugging Face
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      run: make upload
+
+    - name: Commit and push .env file
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .env
+        git commit -m "🤖 Bump ${{ env.VERSION }}" || echo "No changes to commit"
+        git push
