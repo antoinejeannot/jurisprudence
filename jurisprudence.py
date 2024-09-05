@@ -188,27 +188,28 @@ def process_date_range(
     batch: int = 0
     total: int = 0
     while True:
-        _start = start.isoformat().replace("+00:00", "Z")
-        _end = end.isoformat().replace("+00:00", "Z")
+        assert start <= end
+        # BUG: datetime in ISO format lead fo data loss and 500 internal server errors
+        _start = str(start.date())
+        _end = str(end.date())
         console.log(
             f"Fetching {jurisdiction}, from {_start} to {_end}, {batch=}, {batch_size=}",
             end="...",
         )
         response: ResponseDict = fetch_batch(
             order="asc",
-            date_type="creation",
             resolve_references="true",
             batch=str(batch),
             batch_size=str(batch_size),
             date_start=_start,
             date_end=_end,
-            jurisdiction=jurisdiction,
+            jurisdiction=jurisdiction.lower(),
         )
         total: int = response["total"]
         if total == 0:
             break
         elif total == 10_000:
-            # I have experienced data loss
+            # BUG: I have experienced data loss
             # when `total` reaches the batch max size == 10_000
             # so let's reduce it by splitting the time range equally
             pivot = start + (end - start) / 2
