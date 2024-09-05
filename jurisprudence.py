@@ -265,7 +265,7 @@ def process_date_range(
     "-b",
     "--batch-size",
     type=int,
-    default=100,
+    default=1000,
     help="Batch size for exports, must be lower or equal than 1000",
 )
 @click.option(
