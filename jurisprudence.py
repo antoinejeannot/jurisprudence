@@ -374,8 +374,8 @@ def release_note(input_path: Path, output_path: Path, version: str):
     """
     if not version:
         version = f"v{datetime.datetime.now().strftime('%Y.%m.%d')}"
-
-    release_note = f"# ✨ Release {version} 🏛️\n\n"
+    release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
+    release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
     release_note += "## 📊 Exported Data\n\n"
 
     # Start the markdown table
@@ -410,19 +410,29 @@ def release_note(input_path: Path, output_path: Path, version: str):
 
             # Count the number of jurisprudences and find oldest/latest dates
             jurisprudence_count = 0
-            oldest_date = datetime.datetime.max
-            latest_date = datetime.datetime.min
-
-            for file in jurisdiction_path.glob("**/*.jsonl"):
+            oldest_date = None
+            latest_date = None
+            line = None
+            for file in sorted(
+                jurisdiction_path.glob("**/*.jsonl"),
+                key=lambda x: datetime.datetime.strptime(
+                    os.path.basename(x).split("+00:00-")[0], "%Y-%m-%dT%H:%M:%S"
+                ),
+            ):
                 with open(file, "r") as f:
                     for line in f:
+                        if oldest_date is None:
+                            oldest_date = datetime.datetime.strptime(
+                                json.loads(line)["decision_date"], "%Y-%m-%d"
+                            )
+
                         jurisprudence_count += 1
-                        data = json.loads(line)
-                        decision_date = datetime.datetime.strptime(
-                            data["decision_date"], "%Y-%m-%d"
-                        )
-                        oldest_date = min(oldest_date, decision_date)
-                        latest_date = max(latest_date, decision_date)
+            assert line
+            latest_date = datetime.datetime.strptime(
+                json.loads(line)["decision_date"], "%Y-%m-%d"
+            )
+            assert oldest_date
+            assert latest_date
 
             total_jurisprudences += jurisprudence_count
 
