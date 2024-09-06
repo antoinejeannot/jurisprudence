@@ -362,7 +362,10 @@ def export(
     default=".",
 )
 @click.option(
-    "--version", type=str, default=None, help="Version number for the release"
+    "--version",
+    type=str,
+    default=f"v{datetime.datetime.now().strftime('%Y.%m.%d')}",
+    help="Version number for the release",
 )
 def release_note(input_path: Path, output_path: Path, version: str):
     """
@@ -373,10 +376,10 @@ def release_note(input_path: Path, output_path: Path, version: str):
         output_path: The directory where the release-note will be written.
         version: The version number for the release. If not provided, uses the current date.
     """
-    if not version:
-        version = f"v{datetime.datetime.now().strftime('%Y.%m.%d')}"
     encoding = tiktoken.encoding_for_model("gpt-4")
+    output_path = output_path / f"{version}.md"
     release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
+    release_note += "[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/ajeannot/jurisprudence)\n\n"
     release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
     release_note += "Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:\n\n"
     release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)\n"
@@ -458,7 +461,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
     # Add total row (excluding date range and download link for total)
     release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | **{total_tokens:,} +** | - |\n\n"
     release_note += (
-        f"<i>Last update date: {version.lstrip("v").replace(".", "-")}</i>\n\n"
+        f"<i>Latest update date: {version.lstrip("v").replace(".", "-")}</i>\n\n"
     )
     release_note += "<i># Tokens are computed GPT-4 using tiktoken </i>\n\n"
     release_note += "\n## 🤗 Hugging Face Dataset\n\n"
@@ -479,7 +482,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
     release_note += "This project relies on the [Judilibre API par la Cour de Cassation](https://www.data.gouv.fr/en/datasets/api-judilibre/), which is made available under the Open License 2.0 (Licence Ouverte 2.0)\n\n"
     release_note += "It scans the API every 3 days at 2am UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.\n\n"
     release_note += '<p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/" alt="license ouverte / open license"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50></a></p>\n\n'
-    output_path.write_text(release_note)
+    assert output_path.write_text(release_note)
     console.print(f"[green]Release note generated at:[/green] {output_path}")
 
 

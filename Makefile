@@ -1,5 +1,5 @@
 
-.PHONY: export install compress upload release
+.PHONY: export install compress upload release-note
 
 # Define the date format for CalVer
 YEAR := $(shell date +"%Y")
@@ -19,11 +19,12 @@ compress:
 	@find ./raws/CA -name "*.jsonl" -type f -print0 | xargs -0 tar czvf compressed/cour_d_appel.jsonl.tar.gz -C . --files-from=-
 	@find ./raws/TJ -name "*.jsonl" -type f -print0 | xargs -0 tar czvf compressed/tribunal_judiciaire.jsonl.tar.gz -C . --files-from=-
 	@find ./raws/CC -name "*.jsonl" -type f -print0 | xargs -0 tar czvf compressed/cour_de_cassation.jsonl.tar.gz -C . --files-from=-
-
-upload:
-	@cp ./metadata.yaml > ./compressed/README.md
-	@cat ./release_notes/$(VERSION).md >> ./compressed/README.md
-	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main ajeannot/jurisprudence ./compressed
 	
 release-note:
-	@python jurisprudence.py release-note ./raws ./release_notes/$(VERSION).md
+	@python jurisprudence.py release-note ./raws ./release_notes --version $(VERSION)
+	@cp release_notes/$(VERSION).md README.md
+
+upload:
+	@cp ./metadata.yaml ./compressed/README.md
+	@cat ./release_notes/$(VERSION).md >> ./compressed/README.md
+	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main ajeannot/jurisprudence ./compressed
