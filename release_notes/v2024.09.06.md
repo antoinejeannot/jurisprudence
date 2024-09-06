@@ -4,7 +4,7 @@
 
 Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:
 
-- Fetch rulings from major French courts (Cour de Cassation, Cours d'Appel, Tribunaux Judiciaires)
+- Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)
 - Process and convert the data into easily accessible formats
 - Publish & version updated datasets on Hugging Face every 3 days
 
@@ -15,9 +15,9 @@ Whether you're conducting legal research, developing AI models, or simply intere
 
 | Jurisdiction | Size | Jurisprudences | Oldest | Latest | Tokens | Download |
 |--------------|------|----------------|--------|--------|--------|----------|
-| Chambre d'Appel | 7.58 GB | 375,549 | 1996-03-25 | 2024-08-13 | 1,884,985,718 +| [Download](https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/chambre_d_appel.tar.gz?download=true) |
+| Cour d'Appel | 7.58 GB | 375,549 | 1996-03-25 | 2024-08-13 | 1,884,985,718 +| [Download](https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true) |
 | Tribunal Judiciaire | 830.98 MB | 56,530 | 2023-12-14 | 2024-08-13 | 204,326,755 +| [Download](https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true) |
-| Cours de Cassation | 4.79 GB | 533,827 | 1860-08-01 | 2024-08-07 | 1,103,124,295 +| [Download](https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cours_de_cassation.tar.gz?download=true) |
+| Cour de Cassation | 4.79 GB | 533,827 | 1860-08-01 | 2024-08-07 | 1,103,124,295 +| [Download](https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true) |
 | **Total** | **13.18 GB** | **965,906** | - | - | **3,192,436,768 +** | - |
 
 <i>Last update date: 2024-09-06</i>

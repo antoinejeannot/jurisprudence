@@ -379,7 +379,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
     release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
     release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
     release_note += "Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:\n\n"
-    release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cours d'Appel, Tribunaux Judiciaires)\n"
+    release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)\n"
     release_note += "- Process and convert the data into easily accessible formats\n"
     release_note += (
         "- Publish & version updated datasets on Hugging Face every 3 days\n\n"
@@ -395,8 +395,8 @@ def release_note(input_path: Path, output_path: Path, version: str):
     total_size = 0
     total_tokens = 0
     download_links = {
-        "CA": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/chambre_d_appel.tar.gz?download=true",
-        "CC": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cours_de_cassation.tar.gz?download=true",
+        "CA": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true",
+        "CC": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true",
         "TJ": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true",
     }
 
@@ -410,9 +410,9 @@ def release_note(input_path: Path, output_path: Path, version: str):
         total_size += size
         human_readable_size = _human_readable_size(size)
         jurisdiction_name = {
-            "CA": "Chambre d'Appel",
+            "CA": "Cour d'Appel",
             "TJ": "Tribunal Judiciaire",
-            "CC": "Cours de Cassation",
+            "CC": "Cour de Cassation",
         }.get(jurisdiction, jurisdiction)
 
         # Count the number of jurisprudences and find oldest/latest dates
