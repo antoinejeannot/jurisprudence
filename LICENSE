@@ -27,9 +27,8 @@ hypertext link, to the source of the "Information" and so supplying an actual
 acknowledgement of its authorship.
 
 **For example:**
-
-> "Ministry of xxx—Original data downloaded from
-> `http://www.data.gouv.fr/fr/datasets/xxx/`, updated on 14 February 2017".
+> "Jeannot Antoine and the Cour de Cassation - Original data downloaded from
+> `https://huggingface.co/datasets/ajeannot/jurisprudence` updated on 06 September 2024".
 
 This acknowledgement of authorship does not confer any official status on the
 "Reuse" of the "Information", and must not suggest any sort of recognition or
