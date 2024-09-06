@@ -1,0 +1,22 @@
+---
+license: etalab-2.0
+task_categories:
+  - text-generation
+  - text-classification
+  - zero-shot-classification
+  - sentence-similarity
+  - feature-extraction
+language:
+  - fr
+tags:
+  - legal
+  - justice
+  - rulings
+  - French
+  - français
+  - jurisprudence
+pretty_name: Jurisprudence
+size_categories:
+  - 10B<n<100B
+---
+

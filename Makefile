@@ -22,7 +22,8 @@ compress:
 	@find ./raws/CC -name "*.jsonl" -type f -print0 | xargs -0 tar czvf compressed/cours_de_cassation.jsonl.tar.gz -C . --files-from=-
 
 upload:
-	@cp ./release_notes/$(VERSION).md ./compressed/README.md
+	@cp ./metadata.yaml > ./compressed/README.md
+	@cat ./release_notes/$(VERSION).md >> ./compressed/README.md
 	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main --include="*.jsonl.tar.gz" --include="*.md" ajeannot/jurisprudence ./compressed --quiet
 	
 release-note:
