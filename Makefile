@@ -24,7 +24,7 @@ compress:
 upload:
 	@cp ./metadata.yaml > ./compressed/README.md
 	@cat ./release_notes/$(VERSION).md >> ./compressed/README.md
-	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main --include="*.jsonl.tar.gz" --include="*.md" ajeannot/jurisprudence ./compressed --quiet
+	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main ajeannot/jurisprudence ./compressed
 	
 release-note:
 	@python jurisprudence.py release-note ./raws ./release_notes/$(VERSION).md
