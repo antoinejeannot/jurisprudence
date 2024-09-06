@@ -1,6 +1,5 @@
 
 .PHONY: export install compress upload release
-include .env
 
 # Define the date format for CalVer
 YEAR := $(shell date +"%Y")
