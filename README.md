@@ -1,34 +1,78 @@
 <p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>
 
-[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/antoinejeannot/jurisprudence)
+[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/antoinejeannot/jurisprudence)[![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/antoinejeannot/jurisprudence)
 
-# ✨ Jurisprudence, release v2024.09.07 🏛️
+# ✨ Jurisprudence, release v2024.09.10 🏛️
 
 Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:
 
 - Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)
 - Process and convert the data into easily accessible formats
-- Publish & version updated datasets on Hugging Face every 3 days
+- Publish & version updated datasets on Hugging Face every few days.
 
-This project aims to democratize access to legal information, enabling researchers, legal professionals, and the public to easily access and analyze French court decisions.
-Whether you're conducting legal research, developing AI models, or simply interested in French jurisprudence, this project provides a valuable, open resource for exploring the French legal landscape.
+It aims to democratize access to legal information, enabling researchers, legal professionals and the public to easily access and analyze French court decisions.
+Whether you're conducting legal research, developing AI models, or simply interested in French jurisprudence, this project might provide a valuable, open resource for exploring the French legal landscape.
 
 ## 📊 Exported Data
 
-| Jurisdiction        | Size         | Jurisprudences | Oldest     | Latest     | Tokens              | Download                                                                                                                       |
-| ------------------- | ------------ | -------------- | ---------- | ---------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Cour d'Appel        | 7.58 GB      | 375,549        | 1996-03-25 | 2024-08-13 | 1,884,985,718 +     | [Download](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true)        |
-| Tribunal Judiciaire | 830.98 MB    | 56,530         | 2023-12-14 | 2024-08-13 | 204,326,755 +       | [Download](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true) |
-| Cour de Cassation   | 4.79 GB      | 533,827        | 1860-08-01 | 2024-08-07 | 1,103,124,295 +     | [Download](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true)   |
-| **Total**           | **13.18 GB** | **965,906**    | -          | -          | **3,192,436,768 +** | -                                                                                                                              |
+| Jurisdiction | Jurisprudences | Oldest | Latest | Tokens | JSONL (gzipped) | Parquet |
+|--------------|----------------|--------|--------|--------|-----------------|---------|
+| Cour d'Appel | 378,392 | 1996-03-25 | 2024-09-04 | 1,895,747,631 | [Download (1.66 GB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_d_appel.jsonl.gz?download=true) | [Download (2.77 GB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_d_appel.parquet?download=true) |
+| Cour de Cassation | 534,258 | 1860-08-01 | 2024-09-10 | 1,103,935,111 | [Download (928.92 MB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.jsonl.gz?download=true) | [Download (1.57 GB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.parquet?download=true) |
+| Tribunal Judiciaire | 58,986 | 2023-12-14 | 2024-08-13 | 211,665,028 | [Download (189.16 MB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/tribunal_judiciaire.jsonl.gz?download=true) | [Download (315.38 MB)](https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/tribunal_judiciaire.parquet?download=true) |
+| **Total** | **971,636** | **1860-08-01** | **2024-09-10** | **3,211,347,770** | **2.75 GB** | **4.65 GB** |
 
-<i>Latest update date: 2024-09-07</i>
+<i>Latest update date: 2024-09-10</i>
 
-<i># Tokens are computed GPT-4 using tiktoken </i>
+<i># Tokens are computed using GPT-4 tiktoken and the `text` column</i>
 
 ## 🤗 Hugging Face Dataset
 
-The updated dataset is available at: <https://huggingface.co/datasets/antoinejeannot/jurisprudence>
+The up-to-date jurisprudences dataset is available at: <https://huggingface.co/datasets/antoinejeannot/jurisprudence> in JSONL (gzipped) and parquet formats.
+
+This allows you to easily fetch, query, process and index all jurisprudences in the blink of an eye!
+
+### Usage Examples
+
+#### HuggingFace Datasets
+
+```python
+# pip install datasets
+import datasets
+
+dataset = load_dataset("antoinejeannot/jurisprudence")
+dataset.shape
+>> {'tribunal_judiciaire': (58986, 33),
+ 'cour_d_appel': (378392, 33),
+ 'cour_de_cassation': (534258, 33)}
+
+# alternatively, you can load each jurisdiction separately
+cour_d_appel = load_dataset("antoinejeannot/jurisprudence", "cour_d_appel")
+tribunal_judiciaire = load_dataset("antoinejeannot/jurisprudence", "tribunal_judiciaire")
+cour_de_cassation = load_dataset("antoinejeannot/jurisprudence", "cour_de_cassation") 
+```
+
+Leveraging datasets allows you to easily ingest data to [PyTorch](https://huggingface.co/docs/datasets/use_with_pytorch), [Tensorflow](https://huggingface.co/docs/datasets/use_with_tensorflow), [Jax](https://huggingface.co/docs/datasets/use_with_jax) etc.
+
+#### BYOL: Bring Your Own Lib
+
+For analysis, using polars, pandas or duckdb is quite common and also possible:
+
+```python
+url = "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.parquet"  # or tribunal_judiciaire.parquet, cour_d_appel.parquet
+
+# pip install polars
+import polars as pl
+df = pl.scan_parquet(url)
+
+# pip install pandas
+import pandas as pd
+df = pd.read_parquet(url)
+
+# pip install duckdb
+import duckdb
+table = duckdb.read_parquet(url)
+```
 
 ## 🪪 Citing & Authors
 
@@ -48,4 +92,4 @@ This project relies on the [Judilibre API par la Cour de Cassation](https://www.
 
 It scans the API every 3 days at 2am UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.
 
-<p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50  alt="license ouverte / open license"></a></p>
+<p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50 alt="license ouverte / open license"></a></p>
