@@ -552,18 +552,28 @@ def fetch_batch(**params: Unpack[Query]) -> ResponseDict:
     Raises:
         httpx.HTTPError: If the API request fails after all retry attempts.
     """
-    return (
-        httpx.get(
-            f"{os.environ['JUDILIBRE_API_URL']}/cassation/judilibre/v1.0/export",
-            params=params,
-            headers={
-                "KeyId": os.environ["JUDILIBRE_API_KEY"],
-                "accept": "application/json",
-            },
-        )
-        .raise_for_status()
-        .json()
+    res = httpx.get(
+        f"{os.environ['JUDILIBRE_API_URL']}/cassation/judilibre/v1.0/export",
+        params=params,
+        headers={
+            "KeyId": os.environ["JUDILIBRE_API_KEY"],
+            "accept": "application/json",
+        },
     )
+    if "x-rate-limit" in res.headers:
+        rate_limits = json.loads(res.headers["x-rate-limit"])
+        max_remaining_limit = max(
+            rate["remaining"] for rate in rate_limits if rate["type"] == "throttle"
+        )
+        min_window_limit = max(
+            min(rate["window"] for rate in rate_limits if rate["type"] == "throttle"), 1
+        )
+        if max_remaining_limit < 5:
+            console.log(
+                f"[red]Rate limit almost reached. Waiting for {min_window_limit} seconds.[/red]"
+            )
+            time.sleep(min_window_limit)
+    return res.raise_for_status().json()
 
 
 def bump_last_export_date(end_date: datetime.datetime) -> None:
