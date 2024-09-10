@@ -90,6 +90,6 @@ note = {Data source: API Judilibre, \url{https://www.data.gouv.fr/en/datasets/ap
 
 This project relies on the [Judilibre API par la Cour de Cassation](https://www.data.gouv.fr/en/datasets/api-judilibre/), which is made available under the Open License 2.0 (Licence Ouverte 2.0)
 
-It scans the API every 3 days at 2am UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.
+It scans the API every 3 days at midnight UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.
 
 <p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50 alt="license ouverte / open license"></a></p>
