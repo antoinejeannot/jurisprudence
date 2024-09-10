@@ -27,4 +27,4 @@ release-note:
 upload:
 	@cp ./metadata.yaml ./compressed/README.md
 	@cat ./release_notes/$(VERSION).md >> ./compressed/README.md
-	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main ajeannot/jurisprudence ./compressed
+	@huggingface-cli upload --repo-type=dataset --commit-message="✨ $(VERSION) 🏛️" --revision=main antoinejeannot/jurisprudence ./compressed

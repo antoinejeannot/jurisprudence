@@ -379,7 +379,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
     encoding = tiktoken.encoding_for_model("gpt-4")
     output_path = output_path / f"{version}.md"
     release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
-    release_note += "[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/ajeannot/jurisprudence)\n\n"
+    release_note += "[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/antoinejeannot/jurisprudence)\n\n"
     release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
     release_note += "Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:\n\n"
     release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)\n"
@@ -398,9 +398,9 @@ def release_note(input_path: Path, output_path: Path, version: str):
     total_size = 0
     total_tokens = 0
     download_links = {
-        "CA": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true",
-        "CC": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true",
-        "TJ": "https://huggingface.co/datasets/ajeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true",
+        "CA": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true",
+        "CC": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true",
+        "TJ": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true",
     }
 
     for jurisdiction in Jurisdiction._member_names_:
@@ -465,7 +465,7 @@ def release_note(input_path: Path, output_path: Path, version: str):
     )
     release_note += "<i># Tokens are computed GPT-4 using tiktoken </i>\n\n"
     release_note += "\n## 🤗 Hugging Face Dataset\n\n"
-    release_note += "The updated dataset is available at: https://huggingface.co/datasets/ajeannot/jurisprudence\n\n"
+    release_note += "The updated dataset is available at: https://huggingface.co/datasets/antoinejeannot/jurisprudence\n\n"
     release_note += "## 🪪 Citing & Authors\n\n"
     release_note += "If you use this code in your research, please use the following BibTeX entry:\n"
     release_note += "```bibtex\n"
