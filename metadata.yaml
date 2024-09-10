@@ -16,7 +16,21 @@ tags:
   - français
   - jurisprudence
 pretty_name: Jurisprudence
-size_categories:
-  - 10B<n<100B
+configs:
+  - config_name: default
+    default: true
+    data_files:
+      - split: tribunal_judiciaire
+        path: "tribunal_judiciaire.parquet"
+      - split: cour_d_appel
+        path: "cour_d_appel.parquet"
+      - split: cour_de_cassation
+        path: "cour_de_cassation.parquet"
+  - config_name: tribunal_judiciaire
+    data_files: "tribunal_judiciaire.parquet"
+  - config_name: cour_d_appel
+    data_files: "cour_d_appel.parquet"
+  - config_name: cour_de_cassation
+    data_files: "cour_de_cassation.parquet"
 ---
 

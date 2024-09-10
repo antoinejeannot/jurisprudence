@@ -32,8 +32,12 @@ markdown-it-py==3.0.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
+numpy==2.1.1
+    # via pyarrow
 packaging==24.1
     # via huggingface-hub
+pyarrow==17.0.0
+    # via jurisprudence (pyproject.toml)
 pygments==2.18.0
     # via rich
 pyyaml==6.0.2

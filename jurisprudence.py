@@ -8,8 +8,14 @@ from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, Unpack
 
 import click
+import duckdb
 import httpx
+import pyarrow as pa
+import pyarrow.json as pj
+import pyarrow.parquet as pq
 import tiktoken
+from jinja2 import Environment, FileSystemLoader
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from rich.console import Console
 from tenacity import (
     retry,
@@ -59,7 +65,421 @@ class ResponseDict(TypedDict):
     next_batch: str
 
 
-def export_batch(items: list[dict[str, Any]], path: Path) -> None:
+class ZoneSegment(BaseModel):
+    start: int = Field(description="Indice de début du segment.")
+    end: int = Field(description="Indice de fin du segment.")
+
+    @field_validator("end", mode="before")
+    @classmethod
+    def validate_chamber(cls, v: Any) -> int:
+        if v is None:
+            print(f"Issue, ZoneSegment end is integer: {v}")
+            return -1
+        if isinstance(v, int):
+            return v
+        raise ValueError(f"Chamber must be int or None, not {type(v)}")
+
+
+class Zone(BaseModel):
+    motivations: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'motivations'."
+    )
+    moyens: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'moyens'."
+    )
+    dispositif: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'dispositifs'."
+    )
+    annexes: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'moyens annexés'."
+    )
+    expose: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'exposé du litige'."
+    )
+    introduction: list[ZoneSegment] | None = Field(
+        None, description="Segments de la zone 'introduction'."
+    )
+
+
+class TextLink(BaseModel):
+    id: int | None = Field(None, description="Identifiant du texte.")
+    title: str = Field(description="Intitulé du texte.")
+    url: str | None = Field(None, description="URL du texte.")
+
+
+class DecisionLink(BaseModel):
+    date: datetime.date | None = Field(None, description="Date de la décision.")
+    jurisdiction: str | None = Field(
+        None, description="Juridiction ayant rendu la décision."
+    )
+    description: str | None = Field(None, description="Description de la décision.")
+    source: str | None = Field(None, description="Source de la décision.")
+    title: str = Field(description="Intitulé de la décision.")
+    content: str | None = Field(None, description="Contenu de la décision.")
+    url: str | None = Field(None, description="URL de la décision.")
+    number: str | None = Field(None, description="Numéro de la décision.")
+    ongoing: bool | None = Field(
+        None, description="Indique si la décision n'a pas encore été rendue."
+    )
+    solution: str | None = Field(None, description="Solution de la décision.")
+    chamber: str | None = Field(None, description="Chambre ayant rendu la décision.")
+    theme: list[str] | None = Field(
+        None, description="Liste des thèmes associés à la décision."
+    )
+    location: str | None = Field(None, description="Siège ayant rendu la décision.")
+    id: str | None = Field(None, description="Identifiant de la décision.")
+    partial: bool | None = Field(
+        None, description="Indique si le contenu de la décision est partiel."
+    )
+
+    @field_validator("chamber", mode="before")
+    @classmethod
+    def validate_chamber(cls, v: Any) -> str | None:
+        if v is None or isinstance(v, str):
+            return None
+        if isinstance(v, int):
+            print(f"Issue, chamber is integer: {v}")
+            return str(v)
+        raise ValueError(f"Chamber must be str, int, or None, not {type(v)}")
+
+
+class FileLink(BaseModel):
+    date: datetime.date = Field(description="Date d'ajout du document.")
+    size: str | None = Field(None, description="Taille du fichier.")
+    isCommunication: bool = Field(
+        description="Indique si le document est un document de communication."
+    )
+    name: str = Field(description="Intitulé du document associé.")
+    id: str = Field(description="Identifiant du document associé.")
+    type: str = Field(description="Code correspondant au type de document associé.")
+    url: str = Field(description="URL du document associé.")
+
+
+class DecisionFull(BaseModel):
+    summary: str | None = Field(None, description="Sommaire (texte brut).")
+    jurisdiction: str = Field(description="Clé de la juridiction.")
+    numbers: list[str] = Field(
+        description="Tous les numéros de pourvoi de la décision."
+    )
+    formation: str | None = Field(None, description="Clé de la formation.")
+    type: str | None = Field(None, description="Clé du type de décision.")
+    decision_date: datetime.date = Field(description="Date de création de la décision.")
+    themes: list[str] | None = Field(
+        None, description="Liste des matières par ordre de maillons."
+    )
+    number: str = Field(description="Numéro de pourvoi principal de la décision.")
+    solution: str = Field(description="Clé de la solution.")
+    ecli: str | None = Field(None, description="Code ECLI de la décision.")
+    chamber: str | None = Field(None, description="Clé de la chambre.")
+    solution_alt: str | None = Field(
+        None, description="Intitulé complet de la solution."
+    )
+    publication: list[str] = Field(description="Clés du niveau de publication.")
+    files: list[FileLink] | None = Field(
+        None, description="Liste des fichiers associés à la décision."
+    )
+    id: str = Field(description="Identifiant de la décision.")
+    bulletin: str | None = Field(None, description="Numéro de publication au bulletin.")
+
+    update_datetime: datetime.datetime | None = Field(
+        None, description="Date de dernière mise à jour de la décision."
+    )
+    decision_datetime: datetime.datetime | None = Field(
+        None, description="Date de création de la décision."
+    )
+    zones: Zone | None = Field(
+        None,
+        description="Zones détectées dans le texte intégral de la décision.",
+    )
+    forward: DecisionLink | None = Field(None, description="Lien vers une décision.")
+    contested: DecisionLink | None = Field(
+        None, description="Lien vers une décision contestée."
+    )
+    update_date: datetime.date | None = Field(
+        None, description="Date de dernière mise à jour de la décision."
+    )
+    nac: str | None = Field(None, description="Code NAC de la décision.")
+    rapprochements: list[DecisionLink] | None = Field(
+        None, description="Liste des rapprochements de jurisprudence."
+    )
+    visa: list[TextLink] | None = Field(
+        None, description="Liste des textes appliqués par la décision."
+    )
+    particularInterest: bool | None = Field(
+        None,
+        description="Indique si la décision présente un intérêt particulier.",
+    )
+    timeline: list[DecisionLink] | None = Field(
+        None, description="Liste des dates clés relatives à la décision."
+    )
+    to_be_deleted: bool | None = Field(
+        None, description="Indique si la décision doit être supprimée."
+    )
+    text: str | None = Field(
+        None, description="Texte intégral et pseudonymisé de la décision."
+    )
+    partial: bool | None = Field(
+        None, description="Indique si le contenu de la décision est partiel."
+    )
+    text_highlight: str | None = Field(
+        None,
+        description="Texte intégral avec correspondances de recherche en surbrillance.",
+    )
+    titlesAndSummaries: str | None = Field(
+        None, description="Titres et sommaires définis pour la décision."
+    )
+    legacy: str | None = Field(
+        None,
+        description="Propriétés historiques propres à la source de données.",
+    )
+
+    @field_validator("titlesAndSummaries", "legacy", mode="before")
+    @classmethod
+    def validate_titles_and_summaries(cls, v: Any):
+        if isinstance(v, (dict, list)):
+            return json.dumps(v)
+        elif isinstance(v, str):
+            return "{}"
+        raise ValueError()
+
+    @field_serializer("update_datetime", "decision_datetime", when_used="json")
+    def serialize_timestamp(self, timestamp: datetime.datetime | None):
+        if timestamp is None:
+            return None
+        return timestamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+PARQUET_SCHEMA = pa.schema(
+    [
+        # ZoneSegment fields
+        pa.field(
+            "zones",
+            pa.struct(
+                [
+                    pa.field(
+                        "motivations",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                    pa.field(
+                        "moyens",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                    pa.field(
+                        "dispositif",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                    pa.field(
+                        "annexes",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                    pa.field(
+                        "expose",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                    pa.field(
+                        "introduction",
+                        pa.list_(
+                            pa.struct(
+                                [
+                                    pa.field("start", pa.int64()),
+                                    pa.field("end", pa.int64()),
+                                ]
+                            )
+                        ),
+                    ),
+                ]
+            ),
+        ),
+        # TextLink fields
+        pa.field(
+            "visa",
+            pa.list_(
+                pa.struct(
+                    [
+                        pa.field("id", pa.int64()),
+                        pa.field("title", pa.string()),
+                        pa.field("url", pa.string()),
+                    ]
+                )
+            ),
+        ),
+        # DecisionLink fields
+        pa.field(
+            "forward",
+            pa.struct(
+                [
+                    pa.field("date", pa.string()),
+                    pa.field("jurisdiction", pa.string()),
+                    pa.field("description", pa.string()),
+                    pa.field("source", pa.string()),
+                    pa.field("title", pa.string()),
+                    pa.field("content", pa.string()),
+                    pa.field("url", pa.string()),
+                    pa.field("number", pa.string()),
+                    pa.field("ongoing", pa.bool_()),
+                    pa.field("solution", pa.string()),
+                    pa.field("chamber", pa.string()),
+                    pa.field("theme", pa.list_(pa.string())),
+                    pa.field("location", pa.string()),
+                    pa.field("id", pa.string()),
+                    pa.field("partial", pa.bool_()),
+                ]
+            ),
+        ),
+        # FileLink fields
+        pa.field(
+            "files",
+            pa.list_(
+                pa.struct(
+                    [
+                        pa.field("date", pa.string()),
+                        pa.field("size", pa.string()),
+                        pa.field("isCommunication", pa.bool_()),
+                        pa.field("name", pa.string()),
+                        pa.field("id", pa.string()),
+                        pa.field("type", pa.string()),
+                        pa.field("url", pa.string()),
+                    ]
+                )
+            ),
+        ),
+        # DecisionFull fields
+        pa.field("summary", pa.string()),
+        pa.field("jurisdiction", pa.string()),
+        pa.field("numbers", pa.list_(pa.string())),
+        pa.field("formation", pa.string()),
+        pa.field("type", pa.string()),
+        pa.field("decision_date", pa.string()),
+        pa.field("themes", pa.list_(pa.string())),
+        pa.field("number", pa.string()),
+        pa.field("solution", pa.string()),
+        pa.field("ecli", pa.string()),
+        pa.field("chamber", pa.string()),
+        pa.field("solution_alt", pa.string()),
+        pa.field("publication", pa.list_(pa.string())),
+        pa.field("id", pa.string()),
+        pa.field("bulletin", pa.string()),
+        pa.field("update_datetime", pa.timestamp("ms")),
+        pa.field("decision_datetime", pa.timestamp("ms")),
+        pa.field(
+            "contested",
+            pa.struct(
+                [
+                    pa.field("date", pa.string()),
+                    pa.field("jurisdiction", pa.string()),
+                    pa.field("description", pa.string()),
+                    pa.field("source", pa.string()),
+                    pa.field("title", pa.string()),
+                    pa.field("content", pa.string()),
+                    pa.field("url", pa.string()),
+                    pa.field("number", pa.string()),
+                    pa.field("ongoing", pa.bool_()),
+                    pa.field("solution", pa.string()),
+                    pa.field("chamber", pa.string()),
+                    pa.field("theme", pa.list_(pa.string())),
+                    pa.field("location", pa.string()),
+                    pa.field("id", pa.string()),
+                    pa.field("partial", pa.bool_()),
+                ]
+            ),
+        ),
+        pa.field("update_date", pa.string()),
+        pa.field("nac", pa.string()),
+        pa.field(
+            "rapprochements",
+            pa.list_(
+                pa.struct(
+                    [
+                        pa.field("date", pa.string()),
+                        pa.field("jurisdiction", pa.string()),
+                        pa.field("description", pa.string()),
+                        pa.field("source", pa.string()),
+                        pa.field("title", pa.string()),
+                        pa.field("content", pa.string()),
+                        pa.field("url", pa.string()),
+                        pa.field("number", pa.string()),
+                        pa.field("ongoing", pa.bool_()),
+                        pa.field("solution", pa.string()),
+                        pa.field("chamber", pa.string()),
+                        pa.field("theme", pa.list_(pa.string())),
+                        pa.field("location", pa.string()),
+                        pa.field("id", pa.string()),
+                        pa.field("partial", pa.bool_()),
+                    ]
+                )
+            ),
+        ),
+        pa.field("particularInterest", pa.bool_()),
+        pa.field(
+            "timeline",
+            pa.list_(
+                pa.struct(
+                    [
+                        pa.field("date", pa.string()),
+                        pa.field("jurisdiction", pa.string()),
+                        pa.field("description", pa.string()),
+                        pa.field("source", pa.string()),
+                        pa.field("title", pa.string()),
+                        pa.field("content", pa.string()),
+                        pa.field("url", pa.string()),
+                        pa.field("number", pa.string()),
+                        pa.field("ongoing", pa.bool_()),
+                        pa.field("solution", pa.string()),
+                        pa.field("chamber", pa.string()),
+                        pa.field("theme", pa.list_(pa.string())),
+                        pa.field("location", pa.string()),
+                        pa.field("id", pa.string()),
+                        pa.field("partial", pa.bool_()),
+                    ]
+                )
+            ),
+        ),
+        pa.field("to_be_deleted", pa.bool_()),
+        pa.field("text", pa.string()),
+        pa.field("partial", pa.bool_()),
+        pa.field("text_highlight", pa.string()),
+        pa.field("titlesAndSummaries", pa.string()),  # Changed to string
+        pa.field("legacy", pa.string()),  # Changed to string
+    ]
+)
+
+
+def validate_export_batch(items: list[dict[str, Any]], path: Path) -> None:
     """
     Export a batch of items to a file in JSON Lines format.
 
@@ -72,7 +492,8 @@ def export_batch(items: list[dict[str, Any]], path: Path) -> None:
     """
     with open(path, "w") as f:
         for item in items:
-            assert f.write(json.dumps(item, sort_keys=True, indent=None) + "\n")
+            decision = DecisionFull.model_validate(item)
+            assert f.write(decision.model_dump_json(indent=None) + "\n")
 
 
 def split_date_range(
@@ -159,6 +580,12 @@ def bump_last_export_date(end_date: datetime.datetime) -> None:
     assert init_file.write_text(line_to_write)
 
 
+@retry(
+    retry=retry_if_exception_type(ValueError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4),
+    before_sleep=_log_retry,
+)
 def process_date_range(
     jurisdiction: Jurisdiction,
     start: datetime.datetime,
@@ -342,7 +769,7 @@ def export(
                 jurisdiction, start, end, batch_size, sleep
             )
             if len(time_range_batch) > 0:
-                export_batch(
+                validate_export_batch(
                     time_range_batch,
                     output_path_jurisdiction
                     / f"{start.isoformat()}-{end.isoformat()}.jsonl",
@@ -354,12 +781,10 @@ def export(
 @click.argument(
     "input_path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=".",
 )
 @click.argument(
     "output_path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=".",
 )
 @click.option(
     "--version",
@@ -378,112 +803,121 @@ def release_note(input_path: Path, output_path: Path, version: str):
     """
     encoding = tiktoken.encoding_for_model("gpt-4")
     output_path = output_path / f"{version}.md"
-    release_note = '<p align="center"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/jurisprudence.svg" width=650></p>\n\n'
-    release_note += "[![Dataset on HF](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg)](https://huggingface.co/datasets/antoinejeannot/jurisprudence)\n\n"
-    release_note += f"# ✨ Jurisprudence, release {version} 🏛️\n\n"
-    release_note += "Jurisprudence is an open-source project that automates the collection and distribution of French legal decisions. It leverages the Judilibre API provided by the Cour de Cassation to:\n\n"
-    release_note += "- Fetch rulings from major French courts (Cour de Cassation, Cour d'Appel, Tribunal Judiciaire)\n"
-    release_note += "- Process and convert the data into easily accessible formats\n"
-    release_note += (
-        "- Publish & version updated datasets on Hugging Face every 3 days\n\n"
-    )
-    release_note += "This project aims to democratize access to legal information, enabling researchers, legal professionals, and the public to easily access and analyze French court decisions.\n"
-    release_note += "Whether you're conducting legal research, developing AI models, or simply interested in French jurisprudence, this project provides a valuable, open resource for exploring the French legal landscape.\n\n"
-    release_note += "## 📊 Exported Data\n\n"
 
-    # Start the markdown table
-    release_note += "| Jurisdiction | Size | Jurisprudences | Oldest | Latest | Tokens | Download |\n"
-    release_note += "|--------------|------|----------------|--------|--------|--------|----------|\n"
+    env = Environment(loader=FileSystemLoader("."))
+    template = env.get_template(os.path.join("release_notes", "template.jinja2"))
+
+    jurisdictions = ["cour_d_appel", "cour_de_cassation", "tribunal_judiciaire"]
+    jurisdiction_data = []
     total_jurisprudences = 0
-    total_size = 0
     total_tokens = 0
-    download_links = {
-        "CA": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_d_appel.tar.gz?download=true",
-        "CC": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/cour_de_cassation.tar.gz?download=true",
-        "TJ": "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/tribunal_judiciaire.tar.gz?download=true",
-    }
+    overall_oldest_date = datetime.date.max
+    overall_latest_date = datetime.date.min
+    download_base_url = (
+        "https://huggingface.co/datasets/antoinejeannot/jurisprudence/resolve/main/"
+    )
+    total_jsonl_gz_size = 0
+    total_parquet_size = 0
 
-    for jurisdiction in Jurisdiction._member_names_:
-        jurisdiction_path = input_path / jurisdiction
-        if not jurisdiction_path.exists():
+    for jurisdiction in jurisdictions:
+        jsonl_gz_path = input_path / (jurisdiction + ".jsonl.gz")
+        parquet_path = input_path / (jurisdiction + ".parquet")
+
+        if not (jsonl_gz_path.exists() and parquet_path.exists()):
+            console.log(f"[green]{jurisdiction} files do not exist, continue")
             continue
-        size = sum(
-            f.stat().st_size for f in jurisdiction_path.glob("**/*") if f.is_file()
-        )
-        total_size += size
-        human_readable_size = _human_readable_size(size)
+
+        jsonl_gz_size = jsonl_gz_path.stat().st_size
+        parquet_size = parquet_path.stat().st_size
+        total_jsonl_gz_size += jsonl_gz_size
+        total_parquet_size += parquet_size
+
         jurisdiction_name = {
-            "CA": "Cour d'Appel",
-            "TJ": "Tribunal Judiciaire",
-            "CC": "Cour de Cassation",
+            "cour_d_appel": "Cour d'Appel",
+            "tribunal_judiciaire": "Tribunal Judiciaire",
+            "cour_de_cassation": "Cour de Cassation",
         }.get(jurisdiction, jurisdiction)
 
-        # Count the number of jurisprudences and find oldest/latest dates
-        jurisprudence_count = 0
-        oldest_date = datetime.datetime.max
-        latest_date = datetime.datetime.min
-        data = None
-        tokens = 0
-        sorted_paths = sorted(
-            jurisdiction_path.glob("**/*.jsonl"),
-            key=lambda x: datetime.datetime.strptime(
-                os.path.basename(x).split("+00:00-")[0], "%Y-%m-%dT%H:%M:%S"
-            ),
+        conn = duckdb.connect(database=":memory:")
+        conn.execute(
+            f"CREATE TABLE data AS SELECT * FROM parquet_scan('{parquet_path}')"
         )
-        batch: list[str] = []
-        for file in sorted_paths:
-            with open(file, "r") as f:
-                for line in f:
-                    data = json.loads(line)
-                    oldest_date = min(
-                        oldest_date,
-                        datetime.datetime.strptime(data["decision_date"], "%Y-%m-%d"),
-                    )
-                    latest_date = max(
-                        latest_date,
-                        datetime.datetime.strptime(data["decision_date"], "%Y-%m-%d"),
-                    )
-                    if len(batch) < 10000:
-                        batch.append(data["text"])
-                    else:
-                        tokens += sum(map(len, encoding.encode_batch(batch)))
-                        batch.clear()
-                    jurisprudence_count += 1
-        tokens += sum(map(len, encoding.encode_batch(batch)))
-        batch.clear()
-        assert oldest_date
-        assert latest_date
+
+        oldest_date, latest_date = conn.execute(
+            "SELECT MIN(decision_date) as oldest, MAX(decision_date) as latest FROM data"
+        ).fetchone()
+        oldest_date = datetime.datetime.strptime(oldest_date, "%Y-%m-%d").date()
+        latest_date = datetime.datetime.strptime(latest_date, "%Y-%m-%d").date()
+        overall_oldest_date = min(overall_oldest_date, oldest_date)
+        overall_latest_date = max(overall_latest_date, latest_date)
+
+        jurisprudence_count = conn.execute("SELECT COUNT(*) FROM data").fetchone()[0]
+
+        conn.create_function(
+            "count_tokens", lambda text: len(encoding.encode(text)), return_type=int
+        )
+        tokens = conn.execute("SELECT SUM(count_tokens(text)) FROM data").fetchone()[0]
 
         total_jurisprudences += jurisprudence_count
         total_tokens += tokens
-        download_link = download_links.get(jurisdiction, "N/A")
-        release_note += f"| {jurisdiction_name} | {human_readable_size} | {jurisprudence_count:,} | {oldest_date.strftime('%Y-%m-%d')} | {latest_date.strftime('%Y-%m-%d')} | {tokens:,} +| [Download]({download_link}) |\n"
-    # Add total row (excluding date range and download link for total)
-    release_note += f"| **Total** | **{_human_readable_size(total_size)}** | **{total_jurisprudences:,}** | - | - | **{total_tokens:,} +** | - |\n\n"
-    release_note += (
-        f"<i>Latest update date: {version.lstrip("v").replace(".", "-")}</i>\n\n"
-    )
-    release_note += "<i># Tokens are computed GPT-4 using tiktoken </i>\n\n"
-    release_note += "\n## 🤗 Hugging Face Dataset\n\n"
-    release_note += "The updated dataset is available at: https://huggingface.co/datasets/antoinejeannot/jurisprudence\n\n"
-    release_note += "## 🪪 Citing & Authors\n\n"
-    release_note += "If you use this code in your research, please use the following BibTeX entry:\n"
-    release_note += "```bibtex\n"
-    release_note += "@misc{antoinejeannot2024,\n"
-    release_note += "author = {Jeannot Antoine and {Cour de Cassation}},\n"
-    release_note += "title = {Jurisprudence},\n"
-    release_note += "year = {2024},\n"
-    release_note += (
-        "howpublished = {\\url{https://github.com/antoinejeannot/jurisprudence}},\n"
-    )
-    release_note += "note = {Data source: API Judilibre, \\url{https://www.data.gouv.fr/en/datasets/api-judilibre/}}\n"
-    release_note += "}\n"
-    release_note += "```\n\n"
-    release_note += "This project relies on the [Judilibre API par la Cour de Cassation](https://www.data.gouv.fr/en/datasets/api-judilibre/), which is made available under the Open License 2.0 (Licence Ouverte 2.0)\n\n"
-    release_note += "It scans the API every 3 days at 2am UTC and exports its data in various formats to Hugging Face, without any fundamental transformation but conversions.\n\n"
-    release_note += '<p align="center"><a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/" alt="license ouverte / open license"><img src="https://raw.githubusercontent.com/antoinejeannot/jurisprudence/artefacts/license.png" width=50></a></p>\n\n'
+
+        jsonl_gz_link = f"[Download ({_human_readable_size(jsonl_gz_size)})]({download_base_url}{jurisdiction}.jsonl.gz?download=true)"
+        parquet_link = f"[Download ({_human_readable_size(parquet_size)})]({download_base_url}{jurisdiction}.parquet?download=true)"
+
+        jurisdiction_data.append(
+            {
+                "name": jurisdiction_name,
+                "count": jurisprudence_count,
+                "oldest_date": oldest_date,
+                "latest_date": latest_date,
+                "tokens": tokens,
+                "jsonl_gz_link": jsonl_gz_link,
+                "parquet_link": parquet_link,
+            }
+        )
+
+    context = {
+        "version": version,
+        "jurisdiction_data": jurisdiction_data,
+        "total_jurisprudences": total_jurisprudences,
+        "total_tokens": total_tokens,
+        "overall_oldest_date": overall_oldest_date,
+        "overall_latest_date": overall_latest_date,
+        "update_date": version.lstrip("v").replace(".", "-"),
+        "total_jsonl_gz_size": _human_readable_size(total_jsonl_gz_size),
+        "total_parquet_size": _human_readable_size(total_parquet_size),
+    }
+
+    release_note = template.render(context)
+
     assert output_path.write_text(release_note)
     console.print(f"[green]Release note generated at:[/green] {output_path}")
+
+
+@cli.command()
+@click.argument(
+    "input_path",
+    type=click.Path(file_okay=True, dir_okay=False, path_type=Path),
+)
+def to_parquet(input_path: Path):
+    """
+    Convert a Jurisprudence JSONL file to Parquet format.
+
+    Args:
+        input_path (Path): The path to the input JSONL file.
+
+    The function uses a predefined PARQUET_SCHEMA for writing the Parquet file.
+    It reads the JSON file in blocks of 10 MB to handle large files efficiently.
+    """
+    with pq.ParquetWriter(input_path.with_suffix(".parquet"), PARQUET_SCHEMA) as writer:
+        table = pj.read_json(
+            input_path,
+            parse_options=pj.ParseOptions(
+                explicit_schema=PARQUET_SCHEMA, newlines_in_values=False
+            ),
+            read_options=pj.ReadOptions(block_size=10_000_000),
+        )
+        writer.write_table(table)
 
 
 if __name__ == "__main__":

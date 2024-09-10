@@ -9,8 +9,12 @@ authors = [
 ]
 dependencies = [
     "click>=8.1.7",
+    "datasets>=2.21.0",
     "httpx>=0.27.2",
     "huggingface-hub>=0.24.6",
+    "jinja2>=3.1.4",
+    "pyarrow>=17.0.0",
+    "pydantic>=2.9.1",
     "rich>=13.8.0",
     "tenacity>=9.0.0",
     "tiktoken>=0.7.0",
