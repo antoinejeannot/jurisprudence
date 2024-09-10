@@ -34,11 +34,11 @@ The updated dataset is available at: https://huggingface.co/datasets/antoinejean
 
 If you use this code in your research, please use the following BibTeX entry:
 ```bibtex
-@misc{ajeannot2024,
+@misc{antoinejeannot2024,
 author = {Jeannot Antoine and {Cour de Cassation}},
 title = {Jurisprudence},
 year = {2024},
-howpublished = {\url{https://github.com/ajeannot/jurisprudence}},
+howpublished = {\url{https://github.com/antoinejeannot/jurisprudence}},
 note = {Data source: API Judilibre, \url{https://www.data.gouv.fr/en/datasets/api-judilibre/}}
 }
 ```
