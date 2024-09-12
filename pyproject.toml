@@ -1,12 +1,18 @@
+[build-system]
+requires = ["setuptools>=63", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "jurisprudence"
 version = "0.1.0"
-description = "Retrieves French jurisprudences"
+description = "Retrieves French Jurisprudences"
 readme = "README.md"
 requires-python = ">=3.12"
+license = {text = "LO-2.0"}
 authors = [
-    "Antoine Jeannot <antoine.jeannot1002@gmail.com>"
+    {name = "Antoine Jeannot", email = "antoine.jeannot1002@gmail.com"},
 ]
+dynamic = ["optional-dependencies"]
 dependencies = [
     "click>=8.1.7",
     "datasets>=2.21.0",
@@ -19,4 +25,18 @@ dependencies = [
     "rich>=13.8.0",
     "tenacity>=9.0.0",
     "tiktoken>=0.7.0",
+]
+[tool.setuptools.dynamic]
+optional-dependencies = {cli = { file = ["requirements-cli.txt"] }}
+
+[project.scripts]
+jurisprudence = "jurisprudence.cli:cli"
+
+[tool.setuptools]
+packages = ["jurisprudence"]
+
+[tool.setuptools.package-data]
+jurisprudence = [
+    "templates/release_note.jinja2",
+    "py.typed",
 ]

@@ -9,33 +9,33 @@ VERSION := v$(YEAR).$(MONTH).$(DAY)
 
 export:
 	@mkdir -p raws
-	@python jurisprudence.py export ./raws --start-date 1860-01-01 -j CC
-	@python jurisprudence.py export ./raws --start-date 1996-01-01 -j CA
-	@python jurisprudence.py export ./raws --start-date 2020-01-01 -j TJ
+	@jurisprudence export ./raws --start-date 1860-01-01 -j CC
+	@jurisprudence export ./raws --start-date 1996-01-01 -j CA
+	@jurisprudence export ./raws --start-date 2020-01-01 -j TJ
 
 install:
-	@pip install -r requirements.txt
+	@pip install -e ".[cli]"
 
 compress:
 	@mkdir -p compressed
 
 	@find ./raws/CA -name "*.jsonl" -type f -print0 | sort -z | xargs -0 cat > compressed/cour_d_appel.jsonl 
 	@rm -rf ./raws/CA
-	@python jurisprudence.py to-parquet compressed/cour_d_appel.jsonl
+	@jurisprudence to-parquet compressed/cour_d_appel.jsonl
 	@gzip compressed/cour_d_appel.jsonl
 
 	@find ./raws/TJ -name "*.jsonl" -type f -print0 | sort -z | xargs -0 cat > compressed/tribunal_judiciaire.jsonl 
 	@rm	-rf ./raws/TJ
-	@python jurisprudence.py to-parquet compressed/tribunal_judiciaire.jsonl
+	@jurisprudence to-parquet compressed/tribunal_judiciaire.jsonl
 	@gzip compressed/tribunal_judiciaire.jsonl
 
 	@find ./raws/CC -name "*.jsonl" -type f -print0 | sort -z | xargs -0 cat > compressed/cour_de_cassation.jsonl
 	@rm	-rf ./raws/CC
-	@python jurisprudence.py to-parquet compressed/cour_de_cassation.jsonl
+	@jurisprudence to-parquet compressed/cour_de_cassation.jsonl
 	@gzip compressed/cour_de_cassation.jsonl
 	
 release-note:
-	@python jurisprudence.py release-note ./compressed ./release_notes --version $(VERSION)
+	@jurisprudence release-note ./compressed ./release_notes --version $(VERSION)
 	@cp release_notes/$(VERSION).md README.md
 
 upload:
