@@ -45,7 +45,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add .env README.md release_notes/${{env.VERSION}}.md 
+          git add jurisprudence/settings.py release_notes/${{env.VERSION}}.md 
           git commit -m "🤖 Bump ${{ env.VERSION }}" || echo "No changes to commit"
           git push
       - name: Create Release
