@@ -36,3 +36,4 @@ configs:
 ## Dataset Description
  - **Repository:** https://huggingface.co/datasets/antoinejeannot/jurisprudence
  - **Point of Contact:** [Antoine Jeannot](mailto:antoine.jeannot1002@gmail.com)
+
