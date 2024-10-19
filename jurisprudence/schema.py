@@ -137,6 +137,7 @@ class DecisionFull(BaseModel):
     numbers: list[str] = Field(
         description="Tous les numéros de pourvoi de la décision."
     )
+    location: str | None = Field(None, description="Siège ayant rendu la décision.")
     formation: str | None = Field(None, description="Clé de la formation.")
     type: str | None = Field(None, description="Clé du type de décision.")
     decision_date: datetime.date = Field(description="Date de création de la décision.")
@@ -363,6 +364,7 @@ PARQUET_SCHEMA = pa.schema(
         pa.field("decision_date", pa.string()),
         pa.field("themes", pa.list_(pa.string())),
         pa.field("number", pa.string()),
+        pa.field("location", pa.string()),
         pa.field("solution", pa.string()),
         pa.field("ecli", pa.string()),
         pa.field("chamber", pa.string()),
