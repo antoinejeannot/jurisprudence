@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 aiohappyeyeballs==2.4.0
     # via aiohttp
-aiohttp==3.10.5
+aiohttp==3.10.11
     # via
     #   datasets
     #   fsspec
