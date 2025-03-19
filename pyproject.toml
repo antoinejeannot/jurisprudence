@@ -26,8 +26,6 @@ dependencies = [
     "tenacity>=9.0.0",
     "tiktoken>=0.7.0",
 ]
-[tool.setuptools.dynamic]
-optional-dependencies = {cli = { file = ["requirements-cli.txt"] }}
 
 [project.scripts]
 jurisprudence = "jurisprudence.cli:cli"

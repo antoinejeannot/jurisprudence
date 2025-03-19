@@ -22,7 +22,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: make install
+        run: |
+          pip install uv
+          uv tool install . --with-requirements requirements.txt
 
       - name: Set VERSION
         run: echo "VERSION=v$(date +'%Y.%m.%d')" >> $GITHUB_ENV
