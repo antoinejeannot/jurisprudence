@@ -1,8 +1,8 @@
 name: Jurisprudence Export & Upload
 
 on:
-  schedule:
-    - cron: "0 0 */3 * *" # every 3 days at midnight UTC
+  # schedule:
+  #   - cron: "0 0 */3 * *" # every 3 days at midnight UTC
   workflow_dispatch: # Allow manual triggering
 
 env:
