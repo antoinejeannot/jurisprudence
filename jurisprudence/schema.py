@@ -151,7 +151,7 @@ class DecisionFull(BaseModel):
     solution_alt: str | None = Field(
         None, description="Intitulé complet de la solution."
     )
-    publication: list[str] = Field(description="Clés du niveau de publication.")
+    publication: list[str] | None = Field(None, description="Clés du niveau de publication.")
     files: list[FileLink] | None = Field(
         None, description="Liste des fichiers associés à la décision."
     )
