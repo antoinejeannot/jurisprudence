@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.11.14
+aiohttp==3.12.14
     # via
     #   datasets
     #   fsspec
@@ -107,7 +107,7 @@ pyyaml==6.0.2
     #   huggingface-hub
 regex==2024.11.6
     # via tiktoken
-requests==2.32.3
+requests==2.32.4
     # via
     #   datasets
     #   huggingface-hub
@@ -134,7 +134,7 @@ typing-extensions==4.12.2
     #   pydantic-core
 tzdata==2025.1
     # via pandas
-urllib3==2.3.0
+urllib3==2.5.0
     # via requests
 xxhash==3.5.0
     # via datasets
